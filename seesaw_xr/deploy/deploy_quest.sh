@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Build the APK and install it on the Quest 3 over USB (adb). For the Linux lab PC.
+# Build the APK and install it on the Quest 3 over USB (adb)..
 #   ./deploy_quest.sh 192.168.1.50            # build + install + launch
 #   SKIP_BUILD=1 ./deploy_quest.sh 192.168.1.50
 # Set GODOT=/path/to/godot if it is not on PATH. Needs Android SDK (ANDROID_HOME), JDK 17, Godot 4.7.2 export templates.

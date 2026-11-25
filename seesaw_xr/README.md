@@ -1,6 +1,6 @@
 # See/Saw XR (Quest 3 + desktop fallback)
 
-Modular version of the first prototype (`../seesaw_poc`, left untouched). The same app runs on the
+Modular version of the [desktop prototype](../docs/desktop-prototype.md). The same app runs on the
 Meta Quest 3 (OpenXR) and, when no headset is found, on the desktop with mouse and keyboard.
 
 ```
@@ -19,28 +19,28 @@ seesaw_xr/
     export_presets.cfg   preset "MetaQuest" (OpenXR, arm64, internet permission)
   sidecar/               Python: DINOv2 + k-means service
     seesaw_sidecar/      backends.py  clustering.py  prober.py  http_server.py  __main__.py
-    run_sidecar.ps1      starts it with all caches on D:
+    run_sidecar.ps1      starts it with all caches inside the project folder
   deploy/
     deploy_quest.ps1     Windows: write IP -> export APK -> adb install -> launch
-    deploy_quest.sh      Linux lab PC: same thing
+    deploy_quest.sh      Linux: same thing
 ```
 
-Rule for this machine: **nothing goes to C:**. The scripts send temp files, pip/HF/torch/CUDA/Gradle caches to
-`.tmp` and `.cache` inside this folder.
-
 ## 1. Start the sidecar
+
+Create a Python 3.10+ virtual environment and install `sidecar/requirements.txt` (for an NVIDIA GPU install the
+CUDA build of torch, see the comment in that file). Then:
 
 ```powershell
 cd sidecar
 .\run_sidecar.ps1 -Lan          # -Lan = reachable from the headset; leave it out for desktop only
 ```
 
-It prints `headset server address: 192.168.x.x`. That is the IP you give the deploy script.
-First start loads DINOv2 from `.cache\huggingface` (already downloaded on this laptop).
-Quick plumbing test without torch: `.\run_sidecar.ps1 -Backend rgb`.
-The first time, Windows Firewall asks about `python.exe`: allow **Private networks**.
+Or, on any OS: `python -m seesaw_sidecar --host 0.0.0.0` from the `sidecar/` folder.
 
-New machine? Create the venv on D: and install: see `sidecar/requirements.txt` (CUDA torch: see the comment there).
+It prints `headset server address: 192.168.x.x`. That is the IP you give the deploy script. The first start
+downloads `facebook/dinov2-small` from Hugging Face. A quick plumbing test without torch:
+`python -m seesaw_sidecar --backend rgb` (or `.\run_sidecar.ps1 -Backend rgb`). The first time, Windows Firewall asks
+about `python.exe`: allow **Private networks**.
 
 ## 2. Try it on the desktop first
 
@@ -51,11 +51,13 @@ Godot prints a harmless "OpenXR failed to start" message on a PC without a heads
 ## 3. Put it on the Quest 3
 
 One-time on the headset: Meta Horizon phone app > Developer Mode on. Plug in the USB cable, put the headset on,
-accept **Allow USB debugging** (tick "Always allow").
+accept **Allow USB debugging** (tick "Always allow"). You also need the Godot 4.7.2 Android export templates, the
+Android SDK and JDK 17.
 
 ```powershell
 adb devices                                   # must list the Quest as "device"
 cd deploy
+$env:GODOT = "path\to\Godot_v4.7.2-stable_win64_console.exe"
 .\deploy_quest.ps1 -ServerIp 192.168.x.x      # the address printed by the sidecar
 ```
 
@@ -67,11 +69,11 @@ Later builds are fast. Rebuilding is only needed when code changes; to change ju
 adb push server.json /sdcard/Android/data/com.seesaw.xr/files/server.json
 ```
 
-The headset and the PC must be on the same network. University Wi-Fi often blocks device-to-device traffic:
+The headset and the PC must be on the same network. Some Wi-Fi networks block device-to-device traffic:
 if the HUD says "Sidecar not reachable", use a phone hotspot for both. Check from the headset browser:
 `http://<ip>:8765/` should show `{"ok": true, ...}`.
 
-Linux lab PC: `ANDROID_HOME=... GODOT=/path/to/godot ./deploy/deploy_quest.sh 192.168.x.x`.
+Linux: `ANDROID_HOME=... GODOT=/path/to/godot ./deploy/deploy_quest.sh 192.168.x.x`.
 
 ### Controls in the headset
 
@@ -83,11 +85,12 @@ Linux lab PC: `ANDROID_HOME=... GODOT=/path/to/godot ./deploy/deploy_quest.sh 19
 | Left stick | walk |
 | Right stick | turn |
 
-## Not done yet / not verified
+## Status and limitations
 
-* Verified on this PC: scripts load with no errors, a desktop probe works end to end with the RGB backend,
-  the PowerShell scripts parse. **Not verified**: running on the headset (no device tested), the first Gradle
-  export, and a full DINOv2 run with this folder's code (same model code as the first prototype).
+* Verified: the scripts load with no errors (headless Godot import and parse, run in CI), a desktop probe works end
+  to end with the RGB backend, the PowerShell scripts parse. The DINOv2 pipeline itself is the one validated in the
+  desktop prototype.
+* **Not verified**: running on the headset, and the first Gradle export.
 * The laser is a fixed 3 m aim ray (no collision shapes in the demo room).
-* Comparison lens / second model, FeatUp upsampling, mixed reality, the depth test for the overlay:
-  still on the list (see `../seesaw_poc/README.md`).
+* Not implemented yet: comparison lens / second model, FeatUp upsampling (bilinear feature upsampling is used instead),
+  mixed reality, and a depth test for the overlay (see the [main README](../README.md#roadmap)).

@@ -1,0 +1,119 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  repo-checks:
+    name: Repository checks
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: No merge conflict markers
+        run: |
+          if git grep -nE '^(<<<<<<< |>>>>>>> |=======$)' -- . ':!*.pdf'; then
+            echo "::error::Merge conflict markers found"; exit 1
+          fi
+
+      - name: No files over 50 MB
+        run: |
+          big=$(git ls-files -z | xargs -0 -r du -k | awk '$1 > 51200 {print $2}')
+          if [ -n "$big" ]; then
+            echo "::error::Files over 50 MB (use Git LFS or keep them out of the repo):"; echo "$big"; exit 1
+          fi
+
+      - name: No caches or secrets committed
+        run: |
+          bad=$(git ls-files | grep -E '(^|/)\.godot/|(^|/)\.env$|(^|/)\.env\.|\.pem$|\.key$|\.keystore$' || true)
+          if [ -n "$bad" ]; then
+            echo "::error::These files must not be committed:"; echo "$bad"; exit 1
+          fi
+
+  sidecar-checks:
+    name: Sidecar checks
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Byte-compile both sidecars
+        run: |
+          python -m compileall -q sidecar seesaw_xr/sidecar
+
+      - name: Run tests (if a tests/ folder exists)
+        run: |
+          for d in sidecar seesaw_xr/sidecar; do
+            if [ -d "$d/tests" ]; then
+              pip install -r "$d/requirements.txt" pytest
+              (cd "$d" && pytest -q)
+            else
+              echo "$d: no tests/ folder yet; skipping."
+            fi
+          done
+
+  godot-checks:
+    name: Godot checks (${{ matrix.project }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        project: [godot, seesaw_xr/godot]
+    env:
+      GODOT_VERSION: 4.7.2-stable
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Godot ${{ env.GODOT_VERSION }}
+        run: |
+          base="https://github.com/godotengine/godot/releases/download/${GODOT_VERSION}"
+          zip="Godot_v${GODOT_VERSION}_linux.x86_64.zip"
+          curl -fsSLO "$base/$zip"
+          curl -fsSLO "$base/SHA512-SUMS.txt"
+          grep " $zip\$" SHA512-SUMS.txt | sha512sum -c -
+          unzip -q "$zip"
+          sudo mv "Godot_v${GODOT_VERSION}_linux.x86_64" /usr/local/bin/godot
+          godot --version
+
+      - name: Import project
+        run: |
+          godot --headless --path "${{ matrix.project }}" --import 2>&1 | tee import.log
+          if grep -E "SCRIPT ERROR|Parse Error|Failed to load" import.log; then
+            echo "::error::Godot reported errors during import"; exit 1
+          fi
+
+      - name: Parse every GDScript file
+        run: |
+          status=0
+          while IFS= read -r -d '' f; do
+            if ! out=$(godot --headless --path "${{ matrix.project }}" --check-only --script "res://${f#${{ matrix.project }}/}" 2>&1) \
+               || grep -qE "SCRIPT ERROR|Parse Error" <<<"$out"; then
+              echo "::error file=$f::GDScript parse failed"; echo "$out"; status=1
+            fi
+          done < <(git ls-files -z "${{ matrix.project }}/*.gd")
+          exit $status
+
+  # A single required check for branch protection. Add every new job to `needs`.
+  ci-passed:
+    name: CI passed
+    if: always()
+    needs: [repo-checks, sidecar-checks, godot-checks]
+    runs-on: ubuntu-latest
+    steps:
+      - name: All jobs succeeded
+        run: |
+          if [ "${{ contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled') || contains(needs.*.result, 'skipped') }}" = "true" ]; then
+            echo "::error::A required job did not succeed"; exit 1
+          fi
