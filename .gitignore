@@ -1,0 +1,15 @@
+﻿# Godot
+.godot/
+/android/
+*.translation
+
+# Python sidecar
+sidecar/.venv/
+__pycache__/
+*.pyc
+
+# local caches and screenshots
+.tmp/
+.cache/
+*.log
+pip_tmpcache/
