@@ -17,7 +17,7 @@ jobs:
     name: Repository checks
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: No merge conflict markers
         run: |
@@ -43,7 +43,7 @@ jobs:
     name: Sidecar checks
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - uses: actions/setup-python@v5
         with:
@@ -74,7 +74,7 @@ jobs:
     env:
       GODOT_VERSION: 4.7.2-stable
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Install Godot ${{ env.GODOT_VERSION }}
         run: |
