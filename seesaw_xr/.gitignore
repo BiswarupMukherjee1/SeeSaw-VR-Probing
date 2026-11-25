@@ -1,0 +1,14 @@
+# Godot
+godot/.godot/
+godot/android/
+godot/assets/
+# build output
+build/
+# Python
+sidecar/.venv/
+__pycache__/
+*.pyc
+# local caches and temp (kept on D:, never committed)
+.cache/
+.tmp/
+*.log

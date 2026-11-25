@@ -1,0 +1,7 @@
+numpy
+pillow
+transformers>=4.40
+scipy
+# torch: for the NVIDIA GPU use the CUDA build
+#   pip install torch --index-url https://download.pytorch.org/whl/cu128
+torch
